@@ -40,3 +40,11 @@ Build artifacts are written to `dist/`.
 ```bash
 uv run pytest
 ```
+
+## Lint, Format, And Type Check
+
+```bash
+uv run ruff check
+uv run ruff format
+uv run basedpyright
+```

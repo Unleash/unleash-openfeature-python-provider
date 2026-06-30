@@ -13,6 +13,7 @@ class FakeUnleashClient:
         self.context = context
         if feature_name == "enabled":
             return True
+        assert fallback_function is not None
         return fallback_function(feature_name, context)
 
     def get_variant(self, feature_name, context=None):

@@ -142,7 +142,8 @@ class UnleashFlagProvider(AbstractProvider):
             )
 
         # Pretty sure Unleash can't give us a list here
-        # buuuuut, the OF lib suggests we can get one so it doesn't feel harmful to allow this
+        # buuuuut, the OF lib suggests we can get one so it
+        # doesn't feel harmful to allow this
         if not isinstance(value, (list, dict)):
             return FlagResolutionDetails(
                 value=default_value,

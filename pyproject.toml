@@ -11,7 +11,9 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.39.9",
     "pytest>=8.0.0",
+    "ruff>=0.15.20",
 ]
 
 [build-system]
@@ -20,6 +22,26 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+src = ["src", "tests"]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "UP",
+    "B",
+    "SIM",
+]
+
+[tool.basedpyright]
+include = ["src", "tests"]
+pythonVersion = "3.10"
+typeCheckingMode = "standard"
 
 [tool.uv]
 package = true
