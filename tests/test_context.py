@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 
 from openfeature.evaluation_context import EvaluationContext
@@ -9,19 +10,46 @@ def test_none_context_becomes_empty_unleash_context() -> None:
     assert to_unleash_context(None) == {}
 
 
-def test_attributes_are_passed_through() -> None:
+def test_base_attributes_stay_at_context_root() -> None:
+    now = datetime(2026, 6, 30, tzinfo=timezone.utc)
     context = EvaluationContext(
         attributes={
+            "currentTime": now,
+            "userId": "user-123",
             "sessionId": "session-123",
             "remoteAddress": "127.0.0.1",
-            "plan": "pro",
+            "environment": "production",
+            "appName": "example-app",
         }
     )
 
     assert to_unleash_context(context) == {
+        "currentTime": now,
+        "userId": "user-123",
         "sessionId": "session-123",
         "remoteAddress": "127.0.0.1",
-        "plan": "pro",
+        "environment": "production",
+        "appName": "example-app",
+    }
+
+
+def test_custom_attributes_move_to_properties() -> None:
+    context = EvaluationContext(
+        attributes={
+            "thing": "test",
+            "userId": "7",
+            "enabled": True,
+            "count": 3,
+        }
+    )
+
+    assert to_unleash_context(context) == {
+        "userId": "7",
+        "properties": {
+            "thing": "test",
+            "enabled": True,
+            "count": 3,
+        },
     }
 
 
@@ -40,10 +68,13 @@ def test_targeting_key_becomes_user_id() -> None:
 def test_existing_user_id_takes_precedence_over_targeting_key() -> None:
     context = EvaluationContext(
         targeting_key="targeting-key",
-        attributes={"userId": "explicit-user-id"},
+        attributes={"userId": "explicit-user-id", "plan": "pro"},
     )
 
-    assert to_unleash_context(context) == {"userId": "explicit-user-id"}
+    assert to_unleash_context(context) == {
+        "userId": "explicit-user-id",
+        "properties": {"plan": "pro"},
+    }
 
 
 def test_does_not_mutate_evaluation_context_attributes() -> None:
@@ -55,18 +86,39 @@ def test_does_not_mutate_evaluation_context_attributes() -> None:
     assert attributes == {"sessionId": "session-123"}
 
 
-def test_preserves_openfeature_attribute_values() -> None:
+def test_discards_nested_custom_properties(caplog) -> None:
+    context = EvaluationContext(
+        attributes={
+            "team": {"name": "sdk"},
+            "groups": ["beta-testers"],
+            "plan": "pro",
+        }
+    )
+
+    with caplog.at_level(logging.WARNING):
+        result = to_unleash_context(context)
+
+    assert result == {"properties": {"plan": "pro"}}
+    assert "Discarding nested Unleash context property: team" in caplog.messages
+    assert "Discarding nested Unleash context property: groups" in caplog.messages
+
+
+def test_does_not_emit_empty_properties_after_discarding_nested_values() -> None:
+    context = EvaluationContext(attributes={"team": {"name": "sdk"}})
+
+    assert to_unleash_context(context) == {}
+
+
+def test_base_context_values_can_be_nested_for_unleash_to_normalize() -> None:
     now = datetime(2026, 6, 30, tzinfo=timezone.utc)
     context = EvaluationContext(
         attributes={
             "currentTime": now,
-            "properties": {"team": "sdk"},
-            "enabled": True,
+            "userId": 7,
         }
     )
 
     assert to_unleash_context(context) == {
         "currentTime": now,
-        "properties": {"team": "sdk"},
-        "enabled": True,
+        "userId": 7,
     }
