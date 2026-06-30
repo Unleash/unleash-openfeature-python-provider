@@ -10,6 +10,8 @@ from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagResolutionDetails, Reason
 from openfeature.provider import AbstractProvider, Metadata
 
+from ._context import to_unleash_context
+
 if typing.TYPE_CHECKING:
     from openfeature.flag_evaluation import FlagValueType
 
@@ -45,13 +47,14 @@ class UnleashFlagProvider(AbstractProvider):
 
     def get_metadata(self) -> Metadata:
         return UnleashProviderMetadata()
+
     def resolve_boolean_details(
         self,
         flag_key: str,
         default_value: bool,
         evaluation_context: EvaluationContext | None = None,
     ) -> FlagResolutionDetails[bool]:
-        context = self._to_unleash_context(evaluation_context)
+        context = to_unleash_context(evaluation_context)
 
         value = self._client.is_enabled(
             flag_key,
@@ -111,7 +114,7 @@ class UnleashFlagProvider(AbstractProvider):
     ) -> FlagResolutionDetails[Sequence[FlagValueType] | Mapping[str, FlagValueType]]:
         variant = self._client.get_variant(
             flag_key,
-            self._to_unleash_context(evaluation_context),
+            to_unleash_context(evaluation_context),
         )
 
         payload = variant.get("payload")
@@ -163,7 +166,7 @@ class UnleashFlagProvider(AbstractProvider):
         *,
         convert: typing.Callable[[typing.Any], T],
     ) -> FlagResolutionDetails[T]:
-        context = self._to_unleash_context(evaluation_context)
+        context = to_unleash_context(evaluation_context)
 
         variant = self._client.get_variant(flag_key, context)
 
@@ -191,16 +194,3 @@ class UnleashFlagProvider(AbstractProvider):
             reason=Reason.UNKNOWN,
             variant=variant["name"],
         )
-
-    @staticmethod
-    def _to_unleash_context(
-        evaluation_context: EvaluationContext | None,
-    ) -> dict[str, typing.Any]:
-        if evaluation_context is None:
-            return {}
-
-        context = dict(evaluation_context.attributes)
-        if evaluation_context.targeting_key and "userId" not in context:
-            context["userId"] = evaluation_context.targeting_key
-
-        return context
