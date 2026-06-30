@@ -1,0 +1,22 @@
+[project]
+name = "unleash-openfeature-python-provider"
+version = "0.1.0"
+description = "Python provider for Unleash and OpenFeature."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.uv]
+package = true
