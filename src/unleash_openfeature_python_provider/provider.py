@@ -27,12 +27,14 @@ class UnleashProviderMetadata(Metadata):
 class UnleashClientProtocol(typing.Protocol):
     def initialize_client(self, fetch_toggles: bool = True) -> None: ...
 
+    def destroy(self) -> None: ...
+
     def is_enabled(
         self,
         feature_name: str,
         context: dict[str, typing.Any] | None = None,
         fallback_function: (
-            typing.Callable[[str, dict[str, typing.Any]], bool] | None
+            typing.Callable[[str, dict[str, typing.Any] | None], bool] | None
         ) = None,
     ) -> bool: ...
 
@@ -51,10 +53,10 @@ class UnleashFlagProvider(AbstractProvider):
         return UnleashProviderMetadata()
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
-        ## Unleash Python SDK's initialize is idempotent, pretty sure
-        ## that's an invariant so it should be safe to depend on that
-        ## remaining idempotent
         self._client.initialize_client()
+
+    def shutdown(self) -> None:
+        self._client.destroy()
 
     def resolve_boolean_details(
         self,
@@ -85,6 +87,7 @@ class UnleashFlagProvider(AbstractProvider):
             flag_key,
             default_value,
             evaluation_context,
+            payload_type="string",
             convert=str,
         )
 
@@ -98,6 +101,7 @@ class UnleashFlagProvider(AbstractProvider):
             flag_key,
             default_value,
             evaluation_context,
+            payload_type="number",
             convert=int,
         )
 
@@ -111,6 +115,7 @@ class UnleashFlagProvider(AbstractProvider):
             flag_key,
             default_value,
             evaluation_context,
+            payload_type="number",
             convert=float,
         )
 
@@ -133,6 +138,15 @@ class UnleashFlagProvider(AbstractProvider):
                 variant=variant["name"],
             )
 
+        if payload.get("type") != "json":
+            return FlagResolutionDetails(
+                value=default_value,
+                reason=Reason.ERROR,
+                error_code=ErrorCode.TYPE_MISMATCH,
+                error_message="Variant payload is not a JSON payload",
+                variant=variant["name"],
+            )
+
         try:
             payload_value = payload["value"]
             value = (
@@ -144,7 +158,7 @@ class UnleashFlagProvider(AbstractProvider):
             return FlagResolutionDetails(
                 value=default_value,
                 reason=Reason.ERROR,
-                error_code=ErrorCode.TYPE_MISMATCH,
+                error_code=ErrorCode.PARSE_ERROR,
                 error_message=str(exc),
                 variant=variant["name"],
             )
@@ -173,6 +187,7 @@ class UnleashFlagProvider(AbstractProvider):
         default_value: T,
         evaluation_context: EvaluationContext | None,
         *,
+        payload_type: str,
         convert: typing.Callable[[typing.Any], T],
     ) -> FlagResolutionDetails[T]:
         context = to_unleash_context(evaluation_context)
@@ -184,6 +199,15 @@ class UnleashFlagProvider(AbstractProvider):
             return FlagResolutionDetails(
                 value=default_value,
                 reason=Reason.UNKNOWN,
+                variant=variant["name"],
+            )
+
+        if payload.get("type") != payload_type:
+            return FlagResolutionDetails(
+                value=default_value,
+                reason=Reason.ERROR,
+                error_code=ErrorCode.TYPE_MISMATCH,
+                error_message=f"Variant payload is not a {payload_type} payload",
                 variant=variant["name"],
             )
 

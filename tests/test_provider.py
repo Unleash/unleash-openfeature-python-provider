@@ -9,9 +9,13 @@ class FakeUnleashClient:
     def __init__(self) -> None:
         self.context = None
         self.initialize_calls = 0
+        self.destroy_calls = 0
 
     def initialize_client(self, fetch_toggles=True):
         self.initialize_calls += 1
+
+    def destroy(self):
+        self.destroy_calls += 1
 
     def is_enabled(self, feature_name, context=None, fallback_function=None):
         self.context = context
@@ -43,6 +47,20 @@ class FakeUnleashClient:
                 "feature_enabled": True,
                 "payload": {"type": "json", "value": '{"enabled": true}'},
             }
+        if feature_name == "invalid-object":
+            return {
+                "name": "variant-a",
+                "enabled": True,
+                "feature_enabled": True,
+                "payload": {"type": "json", "value": "not json"},
+            }
+        if feature_name == "wrong-type":
+            return {
+                "name": "variant-a",
+                "enabled": True,
+                "feature_enabled": True,
+                "payload": {"type": "number", "value": "123"},
+            }
         if feature_name == "bad-integer":
             return {
                 "name": "variant-a",
@@ -71,6 +89,16 @@ def test_initialize_initializes_unleash_client() -> None:
     assert client.initialize_calls == 2
 
 
+def test_shutdown_destroys_unleash_client() -> None:
+    client = FakeUnleashClient()
+    provider = UnleashFlagProvider(client)
+
+    provider.shutdown()
+    provider.shutdown()
+
+    assert client.destroy_calls == 2
+
+
 def test_passes_targeting_key_as_unleash_user_id() -> None:
     client = FakeUnleashClient()
     provider = UnleashFlagProvider(client)
@@ -93,6 +121,16 @@ def test_resolves_string_variant_payload() -> None:
     assert details.variant == "variant-a"
 
 
+def test_returns_type_mismatch_for_wrong_string_payload_type() -> None:
+    provider = UnleashFlagProvider(FakeUnleashClient())
+
+    details = provider.resolve_string_details("wrong-type", "fallback")
+
+    assert details.value == "fallback"
+    assert details.reason == Reason.ERROR
+    assert details.error_code == ErrorCode.TYPE_MISMATCH
+
+
 def test_resolves_integer_variant_payload() -> None:
     provider = UnleashFlagProvider(FakeUnleashClient())
 
@@ -107,6 +145,16 @@ def test_resolves_object_variant_payload() -> None:
     details = provider.resolve_object_details("object", {})
 
     assert details.value == {"enabled": True}
+
+
+def test_returns_parse_error_for_invalid_json_object_payload() -> None:
+    provider = UnleashFlagProvider(FakeUnleashClient())
+
+    details = provider.resolve_object_details("invalid-object", {})
+
+    assert details.value == {}
+    assert details.reason == Reason.ERROR
+    assert details.error_code == ErrorCode.PARSE_ERROR
 
 
 def test_returns_default_for_disabled_variant() -> None:

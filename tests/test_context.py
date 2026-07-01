@@ -7,7 +7,7 @@ from unleash_openfeature_python_provider._context import to_unleash_context
 
 
 def test_none_context_becomes_empty_unleash_context() -> None:
-    assert to_unleash_context(None) == {}
+    assert to_unleash_context(None) is None
 
 
 def test_base_attributes_stay_at_context_root() -> None:
@@ -65,6 +65,15 @@ def test_targeting_key_becomes_user_id() -> None:
     }
 
 
+def test_empty_targeting_key_becomes_user_id() -> None:
+    context = EvaluationContext(
+        targeting_key="",
+        attributes={"userId": "explicit-user-id"},
+    )
+
+    assert to_unleash_context(context) == {"userId": ""}
+
+
 def test_targeting_key_overrides_user_id_attribute() -> None:
     context = EvaluationContext(
         targeting_key="targeting-key",
@@ -95,7 +104,7 @@ def test_discards_nested_custom_properties(caplog) -> None:
         }
     )
 
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.DEBUG):
         result = to_unleash_context(context)
 
     assert result == {"properties": {"plan": "pro"}}

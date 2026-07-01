@@ -20,9 +20,9 @@ logger = logging.getLogger(__name__)
 
 def to_unleash_context(
     evaluation_context: EvaluationContext | None,
-) -> dict[str, typing.Any]:
+) -> dict[str, typing.Any] | None:
     if evaluation_context is None:
-        return {}
+        return None
 
     context: dict[str, typing.Any] = {}
     properties: dict[str, typing.Any] = {}
@@ -33,12 +33,12 @@ def to_unleash_context(
             continue
 
         if _is_nested(value):
-            logger.warning("Discarding nested Unleash context property: %s", key)
+            logger.debug("Discarding nested Unleash context property: %s", key)
             continue
 
         properties[key] = value
 
-    if evaluation_context.targeting_key:
+    if evaluation_context.targeting_key is not None:
         context["userId"] = evaluation_context.targeting_key
 
     if properties:
