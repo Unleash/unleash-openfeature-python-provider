@@ -237,9 +237,7 @@ class UnleashFlagProvider(AbstractProvider):
         variant = self._client.get_variant(flag_key, context)
 
         try:
-            payload_value = _resolve_payload_value(
-                variant, payload_type=payload_type
-            )
+            payload_value = _resolve_payload_value(variant, payload_type=payload_type)
             value = convert(payload_value)
             return FlagResolutionDetails(
                 value=value,

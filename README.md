@@ -22,9 +22,36 @@ uv sync --dev
 ## Use
 
 ```python
-import unleash_openfeature_python_provider
+from openfeature import api
+from openfeature.evaluation_context import EvaluationContext
+from UnleashClient import UnleashClient
 
-print(unleash_openfeature_python_provider.__version__)
+from unleash_openfeature_python_provider import UnleashFlagProvider
+
+unleash_client = UnleashClient(
+    url="https://app.unleash-hosted.com/demo/api",
+    app_name="my-app",
+    custom_headers={"Authorization": "<client-api-key>"},
+)
+
+api.set_provider_and_wait(UnleashFlagProvider(unleash_client))
+
+client = api.get_client()
+enabled = client.get_boolean_value(
+    "my-feature",
+    False,
+    EvaluationContext(targeting_key="user-123"),
+)
+```
+
+## Example
+
+```bash
+uv run python examples/boolean_flag.py \
+  --url https://app.unleash-hosted.com/demo/api \
+  --api-key "$UNLEASH_API_KEY" \
+  --flag-key my-feature \
+  --targeting-key user-123
 ```
 
 ## Build
