@@ -19,6 +19,13 @@ if typing.TYPE_CHECKING:
 T = typing.TypeVar("T")
 
 
+class _ObjectPayloadResolutionError(Exception):
+    def __init__(self, error_code: ErrorCode, error_message: str) -> None:
+        self.error_code = error_code
+        self.error_message = error_message
+        super().__init__(error_message)
+
+
 @dataclass
 class UnleashProviderMetadata(Metadata):
     name: str = "Unleash OpenFeature Provider"
@@ -137,34 +144,38 @@ class UnleashFlagProvider(AbstractProvider):
                 value=default_value, reason=Reason.UNKNOWN, variant=variant.get("name")
             )
 
-        payload = variant.get("payload")
-        if not isinstance(payload, Mapping) or "value" not in payload:
+        try:
+            value = self._resolve_object_payload(variant)
+        except _ObjectPayloadResolutionError as exc:
             return FlagResolutionDetails(
                 value=default_value,
                 reason=Reason.ERROR,
-                error_code=ErrorCode.TYPE_MISMATCH,
-                error_message="Variant payload is not present on the resolved variant",
+                error_code=exc.error_code,
+                error_message=exc.error_message,
                 variant=variant.get("name"),
+            )
+
+        return FlagResolutionDetails(
+            value=value,
+            reason=Reason.UNKNOWN,
+            variant=variant.get("name"),
+        )
+
+    def _resolve_object_payload(
+        self,
+        variant: Mapping[str, typing.Any],
+    ) -> Sequence[FlagValueType] | Mapping[str, FlagValueType]:
+        payload = variant.get("payload")
+        if not isinstance(payload, Mapping) or "value" not in payload:
+            raise _ObjectPayloadResolutionError(
+                ErrorCode.TYPE_MISMATCH,
+                "Variant payload is not present on the resolved variant",
             )
 
         if payload.get("type") != "json":
-            return FlagResolutionDetails(
-                value=default_value,
-                reason=Reason.ERROR,
-                error_code=ErrorCode.TYPE_MISMATCH,
-                error_message="Variant payload is not a JSON payload",
-                variant=variant.get("name"),
-            )
-
-        ## Paranoia but the kind of paranoia that prevents subtle and frustrating bugs later
-        ## It's possible that parse yields us a non object type
-        if isinstance(payload["value"], (str, int, float, bool)):
-            return FlagResolutionDetails(
-                value=default_value,
-                reason=Reason.ERROR,
-                error_code=ErrorCode.TYPE_MISMATCH,
-                error_message="Variant payload is not a JSON object or array",
-                variant=variant.get("name"),
+            raise _ObjectPayloadResolutionError(
+                ErrorCode.TYPE_MISMATCH,
+                "Variant payload is not a JSON payload",
             )
 
         try:
@@ -175,31 +186,21 @@ class UnleashFlagProvider(AbstractProvider):
                 else payload_value
             )
         except json.JSONDecodeError as exc:
-            return FlagResolutionDetails(
-                value=default_value,
-                reason=Reason.ERROR,
-                error_code=ErrorCode.PARSE_ERROR,
-                error_message=str(exc),
-                variant=variant.get("name"),
-            )
+            raise _ObjectPayloadResolutionError(
+                ErrorCode.PARSE_ERROR,
+                str(exc),
+            ) from exc
 
         # Pretty sure Unleash can't give us a list here
         # buuuuut, the OF lib suggests we can get one so it
         # doesn't feel harmful to allow this
         if not isinstance(value, (list, dict)):
-            return FlagResolutionDetails(
-                value=default_value,
-                reason=Reason.ERROR,
-                error_code=ErrorCode.TYPE_MISMATCH,
-                error_message="Variant payload is not a JSON object or array",
-                variant=variant.get("name"),
+            raise _ObjectPayloadResolutionError(
+                ErrorCode.TYPE_MISMATCH,
+                "Variant payload is not a JSON object or array",
             )
 
-        return FlagResolutionDetails(
-            value=value,
-            reason=Reason.UNKNOWN,
-            variant=variant.get("name"),
-        )
+        return value
 
     def _resolve_variant_value(
         self,
