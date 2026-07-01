@@ -38,6 +38,9 @@ def to_unleash_context(
 
         properties[key] = value
 
+    if evaluation_context.targeting_key:
+        context["userId"] = evaluation_context.targeting_key
+
     if properties:
         context["properties"] = properties
 

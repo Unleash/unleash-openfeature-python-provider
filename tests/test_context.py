@@ -65,14 +65,14 @@ def test_targeting_key_becomes_user_id() -> None:
     }
 
 
-def test_existing_user_id_takes_precedence_over_targeting_key() -> None:
+def test_targeting_key_overrides_user_id_attribute() -> None:
     context = EvaluationContext(
         targeting_key="targeting-key",
         attributes={"userId": "explicit-user-id", "plan": "pro"},
     )
 
     assert to_unleash_context(context) == {
-        "userId": "explicit-user-id",
+        "userId": "targeting-key",
         "properties": {"plan": "pro"},
     }
 
