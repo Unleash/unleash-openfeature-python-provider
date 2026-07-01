@@ -41,7 +41,7 @@ class UnleashProviderMetadata(Metadata):
 def _resolve_payload_value(
     variant: Mapping[str, typing.Any],
     *,
-    payload_type: str,
+    payload_types: set[str],
 ) -> typing.Any:
     # Enabled property being false is the SDK telling us it returned
     # the default variant for whatever reason.
@@ -56,13 +56,14 @@ def _resolve_payload_value(
             error_message="Variant payload is not present on the resolved variant",
         )
 
-    if payload.get("type") != payload_type:
+    payload_type = payload.get("type")
+    if payload_type not in payload_types:
         raise _VariantResolutionError(
             Reason.ERROR,
             error_code=ErrorCode.TYPE_MISMATCH,
             error_message=(
-                f"Variant payload has type {payload.get('type')!r}, "
-                f"expected {payload_type!r}"
+                f"Variant payload has type {payload_type!r}, "
+                f"expected one of {sorted(payload_types)!r}"
             ),
         )
 
@@ -72,7 +73,7 @@ def _resolve_payload_value(
 def _resolve_object_payload(
     variant: Mapping[str, typing.Any],
 ) -> Sequence[FlagValueType] | Mapping[str, FlagValueType]:
-    payload_value = _resolve_payload_value(variant, payload_type="json")
+    payload_value = _resolve_payload_value(variant, payload_types={"json"})
 
     try:
         value = (
@@ -163,7 +164,7 @@ class UnleashFlagProvider(AbstractProvider):
             flag_key,
             default_value,
             evaluation_context,
-            payload_type="string",
+            payload_types={"string", "csv"},
             convert=str,
         )
 
@@ -177,7 +178,7 @@ class UnleashFlagProvider(AbstractProvider):
             flag_key,
             default_value,
             evaluation_context,
-            payload_type="number",
+            payload_types={"number"},
             convert=int,
         )
 
@@ -191,7 +192,7 @@ class UnleashFlagProvider(AbstractProvider):
             flag_key,
             default_value,
             evaluation_context,
-            payload_type="number",
+            payload_types={"number"},
             convert=float,
         )
 
@@ -229,7 +230,7 @@ class UnleashFlagProvider(AbstractProvider):
         default_value: T,
         evaluation_context: EvaluationContext | None,
         *,
-        payload_type: str,
+        payload_types: set[str],
         convert: typing.Callable[[typing.Any], T],
     ) -> FlagResolutionDetails[T]:
         context = to_unleash_context(evaluation_context)
@@ -237,7 +238,7 @@ class UnleashFlagProvider(AbstractProvider):
         variant = self._client.get_variant(flag_key, context)
 
         try:
-            payload_value = _resolve_payload_value(variant, payload_type=payload_type)
+            payload_value = _resolve_payload_value(variant, payload_types=payload_types)
             value = convert(payload_value)
             return FlagResolutionDetails(
                 value=value,

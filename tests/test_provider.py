@@ -33,6 +33,13 @@ class FakeUnleashClient:
                 "feature_enabled": True,
                 "payload": {"type": "string", "value": "hello"},
             }
+        if feature_name == "csv":
+            return {
+                "name": "variant-a",
+                "enabled": True,
+                "feature_enabled": True,
+                "payload": {"type": "csv", "value": "a,b,c"},
+            }
         if feature_name == "integer":
             return {
                 "name": "variant-a",
@@ -46,6 +53,13 @@ class FakeUnleashClient:
                 "enabled": True,
                 "feature_enabled": True,
                 "payload": {"type": "json", "value": '{"enabled": true}'},
+            }
+        if feature_name == "array-object":
+            return {
+                "name": "variant-a",
+                "enabled": True,
+                "feature_enabled": True,
+                "payload": {"type": "json", "value": "[1,2,3]"},
             }
         if feature_name == "invalid-object":
             return {
@@ -128,6 +142,14 @@ def test_resolves_string_variant_payload() -> None:
     assert details.variant == "variant-a"
 
 
+def test_resolves_csv_variant_payload_as_string() -> None:
+    provider = UnleashFlagProvider(FakeUnleashClient())
+
+    details = provider.resolve_string_details("csv", "none")
+
+    assert details.value == "a,b,c"
+
+
 def test_returns_type_mismatch_for_wrong_string_payload_type() -> None:
     provider = UnleashFlagProvider(FakeUnleashClient())
 
@@ -152,6 +174,14 @@ def test_resolves_object_variant_payload() -> None:
     details = provider.resolve_object_details("object", {})
 
     assert details.value == {"enabled": True}
+
+
+def test_resolves_json_array_object_variant_payload() -> None:
+    provider = UnleashFlagProvider(FakeUnleashClient())
+
+    details = provider.resolve_object_details("array-object", [])
+
+    assert details.value == [1, 2, 3]
 
 
 def test_returns_parse_error_for_invalid_json_object_payload() -> None:
