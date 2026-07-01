@@ -19,10 +19,18 @@ if typing.TYPE_CHECKING:
 T = typing.TypeVar("T")
 
 
-@dataclass
-class _ObjectPayloadResolutionError(Exception):
-    error_code: ErrorCode
-    error_message: str
+class _VariantResolutionError(Exception):
+    def __init__(
+        self,
+        reason: Reason,
+        *,
+        error_code: ErrorCode | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        super().__init__(error_message)
+        self.reason = reason
+        self.error_code = error_code
+        self.error_message = error_message
 
 
 @dataclass
@@ -136,19 +144,12 @@ class UnleashFlagProvider(AbstractProvider):
             to_unleash_context(evaluation_context),
         )
 
-        # Enabled property being false is the SDK telling us it returned
-        # the default variant for whatever reason
-        if not variant.get("enabled"):
-            return FlagResolutionDetails(
-                value=default_value, reason=Reason.UNKNOWN, variant=variant.get("name")
-            )
-
         try:
             value = self._resolve_object_payload(variant)
-        except _ObjectPayloadResolutionError as exc:
+        except _VariantResolutionError as exc:
             return FlagResolutionDetails(
                 value=default_value,
-                reason=Reason.ERROR,
+                reason=exc.reason,
                 error_code=exc.error_code,
                 error_message=exc.error_message,
                 variant=variant.get("name"),
@@ -164,42 +165,63 @@ class UnleashFlagProvider(AbstractProvider):
         self,
         variant: Mapping[str, typing.Any],
     ) -> Sequence[FlagValueType] | Mapping[str, FlagValueType]:
-        payload = variant.get("payload")
-        if not isinstance(payload, Mapping) or "value" not in payload:
-            raise _ObjectPayloadResolutionError(
-                ErrorCode.TYPE_MISMATCH,
-                "Variant payload is not present on the resolved variant",
-            )
-
-        if payload.get("type") != "json":
-            raise _ObjectPayloadResolutionError(
-                ErrorCode.TYPE_MISMATCH,
-                f"Variant payload has type {payload.get('type')!r}, expected 'json'",
-            )
+        payload_value = self._resolve_payload_value(variant, payload_type="json")
 
         try:
-            payload_value = payload["value"]
             value = (
                 json.loads(payload_value)
                 if isinstance(payload_value, str)
                 else payload_value
             )
         except json.JSONDecodeError as exc:
-            raise _ObjectPayloadResolutionError(
-                ErrorCode.PARSE_ERROR,
-                str(exc),
+            raise _VariantResolutionError(
+                Reason.ERROR,
+                error_code=ErrorCode.PARSE_ERROR,
+                error_message=str(exc),
             ) from exc
 
         # Pretty sure Unleash can't give us a list here
         # buuuuut, the OF lib suggests we can get one so it
         # doesn't feel harmful to allow this
         if not isinstance(value, (list, dict)):
-            raise _ObjectPayloadResolutionError(
-                ErrorCode.TYPE_MISMATCH,
-                "Variant payload is not a JSON object or array",
+            raise _VariantResolutionError(
+                Reason.ERROR,
+                error_code=ErrorCode.TYPE_MISMATCH,
+                error_message="Variant payload is not a JSON object or array",
             )
 
         return value
+
+    def _resolve_payload_value(
+        self,
+        variant: Mapping[str, typing.Any],
+        *,
+        payload_type: str,
+    ) -> typing.Any:
+        # Enabled property being false is the SDK telling us it returned
+        # the default variant for whatever reason.
+        if not variant.get("enabled"):
+            raise _VariantResolutionError(Reason.UNKNOWN)
+
+        payload = variant.get("payload")
+        if not isinstance(payload, Mapping) or "value" not in payload:
+            raise _VariantResolutionError(
+                Reason.ERROR,
+                error_code=ErrorCode.TYPE_MISMATCH,
+                error_message="Variant payload is not present on the resolved variant",
+            )
+
+        if payload.get("type") != payload_type:
+            raise _VariantResolutionError(
+                Reason.ERROR,
+                error_code=ErrorCode.TYPE_MISMATCH,
+                error_message=(
+                    f"Variant payload has type {payload.get('type')!r}, "
+                    f"expected {payload_type!r}"
+                ),
+            )
+
+        return payload["value"]
 
     def _resolve_variant_value(
         self,
@@ -214,26 +236,30 @@ class UnleashFlagProvider(AbstractProvider):
 
         variant = self._client.get_variant(flag_key, context)
 
-        payload = variant.get("payload")
-        if not isinstance(payload, Mapping) or "value" not in payload:
+        try:
+            payload_value = self._resolve_payload_value(
+                variant, payload_type=payload_type
+            )
+            value = convert(payload_value)
             return FlagResolutionDetails(
-                value=default_value,
+                value=value,
                 reason=Reason.UNKNOWN,
                 variant=variant.get("name"),
             )
 
-        if payload.get("type") != payload_type:
+        except _VariantResolutionError as exc:
+            return FlagResolutionDetails(
+                value=default_value,
+                reason=exc.reason,
+                error_code=exc.error_code,
+                error_message=exc.error_message,
+                variant=variant.get("name"),
+            )
+        except (TypeError, ValueError) as exc:
             return FlagResolutionDetails(
                 value=default_value,
                 reason=Reason.ERROR,
                 error_code=ErrorCode.TYPE_MISMATCH,
-                error_message=f"Variant payload is not a {payload_type} payload",
+                error_message=str(exc),
                 variant=variant.get("name"),
             )
-
-        value = convert(payload["value"])
-        return FlagResolutionDetails(
-            value=value,
-            reason=Reason.UNKNOWN,
-            variant=variant.get("name"),
-        )
