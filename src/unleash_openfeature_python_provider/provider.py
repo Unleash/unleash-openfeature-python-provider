@@ -211,17 +211,7 @@ class UnleashFlagProvider(AbstractProvider):
                 variant=variant.get("name"),
             )
 
-        try:
-            value = convert(payload["value"])
-        except (TypeError, ValueError, json.JSONDecodeError) as exc:
-            return FlagResolutionDetails(
-                value=default_value,
-                reason=Reason.ERROR,
-                error_code=ErrorCode.TYPE_MISMATCH,
-                error_message=str(exc),
-                variant=variant.get("name"),
-            )
-
+        value = convert(payload["value"])
         return FlagResolutionDetails(
             value=value,
             reason=Reason.UNKNOWN,
