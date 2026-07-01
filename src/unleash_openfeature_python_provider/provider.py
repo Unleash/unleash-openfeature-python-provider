@@ -135,7 +135,7 @@ class UnleashFlagProvider(AbstractProvider):
             return FlagResolutionDetails(
                 value=default_value,
                 reason=Reason.DEFAULT,
-                variant=variant["name"],
+                variant=variant.get("name"),
             )
 
         if payload.get("type") != "json":
@@ -144,7 +144,7 @@ class UnleashFlagProvider(AbstractProvider):
                 reason=Reason.ERROR,
                 error_code=ErrorCode.TYPE_MISMATCH,
                 error_message="Variant payload is not a JSON payload",
-                variant=variant["name"],
+                variant=variant.get("name"),
             )
 
         try:
@@ -160,7 +160,7 @@ class UnleashFlagProvider(AbstractProvider):
                 reason=Reason.ERROR,
                 error_code=ErrorCode.PARSE_ERROR,
                 error_message=str(exc),
-                variant=variant["name"],
+                variant=variant.get("name"),
             )
 
         # Pretty sure Unleash can't give us a list here
@@ -172,13 +172,13 @@ class UnleashFlagProvider(AbstractProvider):
                 reason=Reason.ERROR,
                 error_code=ErrorCode.TYPE_MISMATCH,
                 error_message="Variant payload is not a JSON object or array",
-                variant=variant["name"],
+                variant=variant.get("name"),
             )
 
         return FlagResolutionDetails(
             value=value,
             reason=Reason.UNKNOWN,
-            variant=variant["name"],
+            variant=variant.get("name"),
         )
 
     def _resolve_variant_value(
@@ -199,7 +199,7 @@ class UnleashFlagProvider(AbstractProvider):
             return FlagResolutionDetails(
                 value=default_value,
                 reason=Reason.UNKNOWN,
-                variant=variant["name"],
+                variant=variant.get("name"),
             )
 
         if payload.get("type") != payload_type:
@@ -208,7 +208,7 @@ class UnleashFlagProvider(AbstractProvider):
                 reason=Reason.ERROR,
                 error_code=ErrorCode.TYPE_MISMATCH,
                 error_message=f"Variant payload is not a {payload_type} payload",
-                variant=variant["name"],
+                variant=variant.get("name"),
             )
 
         try:
@@ -219,11 +219,11 @@ class UnleashFlagProvider(AbstractProvider):
                 reason=Reason.ERROR,
                 error_code=ErrorCode.TYPE_MISMATCH,
                 error_message=str(exc),
-                variant=variant["name"],
+                variant=variant.get("name"),
             )
 
         return FlagResolutionDetails(
             value=value,
             reason=Reason.UNKNOWN,
-            variant=variant["name"],
+            variant=variant.get("name"),
         )
