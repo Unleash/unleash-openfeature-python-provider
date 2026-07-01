@@ -130,11 +130,20 @@ class UnleashFlagProvider(AbstractProvider):
             to_unleash_context(evaluation_context),
         )
 
+        ## Enabled property being false is the SDK telling us it returned
+        ## the default variant for whatever reason
+        if not variant.get("enabled"):
+            return FlagResolutionDetails(
+                value=default_value, reason=Reason.UNKNOWN, variant=variant.get("name")
+            )
+
         payload = variant.get("payload")
         if not isinstance(payload, Mapping) or "value" not in payload:
             return FlagResolutionDetails(
                 value=default_value,
-                reason=Reason.DEFAULT,
+                reason=Reason.ERROR,
+                error_code=ErrorCode.TYPE_MISMATCH,
+                error_message="Variant payload is not present on the resolved variant",
                 variant=variant.get("name"),
             )
 
@@ -144,6 +153,17 @@ class UnleashFlagProvider(AbstractProvider):
                 reason=Reason.ERROR,
                 error_code=ErrorCode.TYPE_MISMATCH,
                 error_message="Variant payload is not a JSON payload",
+                variant=variant.get("name"),
+            )
+
+        ## Paranoia but the kind of paranoia that prevents subtle and frustrating bugs later
+        ## It's possible that parse yields us a non object type
+        if isinstance(payload["value"], (str, int, float, bool)):
+            return FlagResolutionDetails(
+                value=default_value,
+                reason=Reason.ERROR,
+                error_code=ErrorCode.TYPE_MISMATCH,
+                error_message="Variant payload is not a JSON object or array",
                 variant=variant.get("name"),
             )
 
