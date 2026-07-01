@@ -38,6 +38,68 @@ class UnleashProviderMetadata(Metadata):
     name: str = "Unleash OpenFeature Provider"
 
 
+def _resolve_payload_value(
+    variant: Mapping[str, typing.Any],
+    *,
+    payload_type: str,
+) -> typing.Any:
+    # Enabled property being false is the SDK telling us it returned
+    # the default variant for whatever reason.
+    if not variant.get("enabled"):
+        raise _VariantResolutionError(Reason.UNKNOWN)
+
+    payload = variant.get("payload")
+    if not isinstance(payload, Mapping) or "value" not in payload:
+        raise _VariantResolutionError(
+            Reason.ERROR,
+            error_code=ErrorCode.TYPE_MISMATCH,
+            error_message="Variant payload is not present on the resolved variant",
+        )
+
+    if payload.get("type") != payload_type:
+        raise _VariantResolutionError(
+            Reason.ERROR,
+            error_code=ErrorCode.TYPE_MISMATCH,
+            error_message=(
+                f"Variant payload has type {payload.get('type')!r}, "
+                f"expected {payload_type!r}"
+            ),
+        )
+
+    return payload["value"]
+
+
+def _resolve_object_payload(
+    variant: Mapping[str, typing.Any],
+) -> Sequence[FlagValueType] | Mapping[str, FlagValueType]:
+    payload_value = _resolve_payload_value(variant, payload_type="json")
+
+    try:
+        value = (
+            json.loads(payload_value)
+            if isinstance(payload_value, str)
+            else payload_value
+        )
+    except json.JSONDecodeError as exc:
+        raise _VariantResolutionError(
+            Reason.ERROR,
+            error_code=ErrorCode.PARSE_ERROR,
+            error_message=str(exc),
+        ) from exc
+
+    # Pretty sure Unleash can't give us a list here
+    # buuuuut, the OF lib suggests we can get one so it
+    # doesn't feel harmful to allow this
+    if not isinstance(value, (list, dict)):
+        raise _VariantResolutionError(
+            Reason.ERROR,
+            error_code=ErrorCode.TYPE_MISMATCH,
+            error_message="Variant payload is not a JSON object or array",
+        )
+
+    return value
+
+
 class UnleashClientProtocol(typing.Protocol):
     def initialize_client(self, fetch_toggles: bool = True) -> None: ...
 
@@ -145,7 +207,7 @@ class UnleashFlagProvider(AbstractProvider):
         )
 
         try:
-            value = self._resolve_object_payload(variant)
+            value = _resolve_object_payload(variant)
         except _VariantResolutionError as exc:
             return FlagResolutionDetails(
                 value=default_value,
@@ -161,68 +223,6 @@ class UnleashFlagProvider(AbstractProvider):
             variant=variant.get("name"),
         )
 
-    def _resolve_object_payload(
-        self,
-        variant: Mapping[str, typing.Any],
-    ) -> Sequence[FlagValueType] | Mapping[str, FlagValueType]:
-        payload_value = self._resolve_payload_value(variant, payload_type="json")
-
-        try:
-            value = (
-                json.loads(payload_value)
-                if isinstance(payload_value, str)
-                else payload_value
-            )
-        except json.JSONDecodeError as exc:
-            raise _VariantResolutionError(
-                Reason.ERROR,
-                error_code=ErrorCode.PARSE_ERROR,
-                error_message=str(exc),
-            ) from exc
-
-        # Pretty sure Unleash can't give us a list here
-        # buuuuut, the OF lib suggests we can get one so it
-        # doesn't feel harmful to allow this
-        if not isinstance(value, (list, dict)):
-            raise _VariantResolutionError(
-                Reason.ERROR,
-                error_code=ErrorCode.TYPE_MISMATCH,
-                error_message="Variant payload is not a JSON object or array",
-            )
-
-        return value
-
-    def _resolve_payload_value(
-        self,
-        variant: Mapping[str, typing.Any],
-        *,
-        payload_type: str,
-    ) -> typing.Any:
-        # Enabled property being false is the SDK telling us it returned
-        # the default variant for whatever reason.
-        if not variant.get("enabled"):
-            raise _VariantResolutionError(Reason.UNKNOWN)
-
-        payload = variant.get("payload")
-        if not isinstance(payload, Mapping) or "value" not in payload:
-            raise _VariantResolutionError(
-                Reason.ERROR,
-                error_code=ErrorCode.TYPE_MISMATCH,
-                error_message="Variant payload is not present on the resolved variant",
-            )
-
-        if payload.get("type") != payload_type:
-            raise _VariantResolutionError(
-                Reason.ERROR,
-                error_code=ErrorCode.TYPE_MISMATCH,
-                error_message=(
-                    f"Variant payload has type {payload.get('type')!r}, "
-                    f"expected {payload_type!r}"
-                ),
-            )
-
-        return payload["value"]
-
     def _resolve_variant_value(
         self,
         flag_key: str,
@@ -237,7 +237,7 @@ class UnleashFlagProvider(AbstractProvider):
         variant = self._client.get_variant(flag_key, context)
 
         try:
-            payload_value = self._resolve_payload_value(
+            payload_value = _resolve_payload_value(
                 variant, payload_type=payload_type
             )
             value = convert(payload_value)
