@@ -8,6 +8,10 @@ from unleash_openfeature_python_provider import UnleashFlagProvider
 class FakeUnleashClient:
     def __init__(self) -> None:
         self.context = None
+        self.initialize_calls = 0
+
+    def initialize_client(self, fetch_toggles=True):
+        self.initialize_calls += 1
 
     def is_enabled(self, feature_name, context=None, fallback_function=None):
         self.context = context
@@ -55,6 +59,16 @@ def test_resolves_boolean_flag() -> None:
     details = provider.resolve_boolean_details("enabled", False)
 
     assert details.value is True
+
+
+def test_initialize_initializes_unleash_client() -> None:
+    client = FakeUnleashClient()
+    provider = UnleashFlagProvider(client)
+
+    provider.initialize(EvaluationContext())
+    provider.initialize(EvaluationContext())
+
+    assert client.initialize_calls == 2
 
 
 def test_passes_targeting_key_as_unleash_user_id() -> None:

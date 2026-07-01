@@ -25,6 +25,8 @@ class UnleashProviderMetadata(Metadata):
 
 
 class UnleashClientProtocol(typing.Protocol):
+    def initialize_client(self, fetch_toggles: bool = True) -> None: ...
+
     def is_enabled(
         self,
         feature_name: str,
@@ -47,6 +49,12 @@ class UnleashFlagProvider(AbstractProvider):
 
     def get_metadata(self) -> Metadata:
         return UnleashProviderMetadata()
+
+    def initialize(self, evaluation_context: EvaluationContext) -> None:
+        ## Unleash Python SDK's initialize is idempotent, pretty sure
+        ## that's an invariant so it should be safe to depend on that
+        ## remaining idempotent
+        self._client.initialize_client()
 
     def resolve_boolean_details(
         self,
