@@ -19,11 +19,10 @@ if typing.TYPE_CHECKING:
 T = typing.TypeVar("T")
 
 
+@dataclass
 class _ObjectPayloadResolutionError(Exception):
-    def __init__(self, error_code: ErrorCode, error_message: str) -> None:
-        self.error_code = error_code
-        self.error_message = error_message
-        super().__init__(error_message)
+    error_code: ErrorCode
+    error_message: str
 
 
 @dataclass
@@ -137,8 +136,8 @@ class UnleashFlagProvider(AbstractProvider):
             to_unleash_context(evaluation_context),
         )
 
-        ## Enabled property being false is the SDK telling us it returned
-        ## the default variant for whatever reason
+        # Enabled property being false is the SDK telling us it returned
+        # the default variant for whatever reason
         if not variant.get("enabled"):
             return FlagResolutionDetails(
                 value=default_value, reason=Reason.UNKNOWN, variant=variant.get("name")
@@ -175,7 +174,7 @@ class UnleashFlagProvider(AbstractProvider):
         if payload.get("type") != "json":
             raise _ObjectPayloadResolutionError(
                 ErrorCode.TYPE_MISMATCH,
-                "Variant payload is not a JSON payload",
+                f"Variant payload has type {payload.get('type')!r}, expected 'json'",
             )
 
         try:
