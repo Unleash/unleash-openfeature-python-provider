@@ -47,6 +47,13 @@ class FakeUnleashClient:
                 "feature_enabled": True,
                 "payload": {"type": "number", "value": "42"},
             }
+        if feature_name == "empty-number":
+            return {
+                "name": "variant-a",
+                "enabled": True,
+                "feature_enabled": True,
+                "payload": {"type": "number", "value": ""},
+            }
         if feature_name == "object":
             return {
                 "name": "variant-a",
@@ -220,6 +227,16 @@ def test_returns_type_mismatch_for_unparseable_variant_payload() -> None:
     assert details.value == 0
     assert details.reason == Reason.ERROR
     assert details.error_code == ErrorCode.TYPE_MISMATCH
+
+
+def test_returns_parse_error_for_empty_number_payload() -> None:
+    provider = UnleashFlagProvider(FakeUnleashClient())
+
+    details = provider.resolve_float_details("empty-number", 7)
+
+    assert details.value == 7
+    assert details.reason == Reason.ERROR
+    assert details.error_code == ErrorCode.PARSE_ERROR
 
 
 def test_metadata_name() -> None:

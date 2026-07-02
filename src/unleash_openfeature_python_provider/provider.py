@@ -101,6 +101,30 @@ def _resolve_object_payload(
     return value
 
 
+# This exists so we can yield error types that we expect
+# Only really needed for spec compliance 
+def _parse_int(value: typing.Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise _VariantResolutionError(
+            Reason.ERROR,
+            error_code=ErrorCode.PARSE_ERROR,
+            error_message=str(exc),
+        ) from exc
+
+
+def _parse_float(value: typing.Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise _VariantResolutionError(
+            Reason.ERROR,
+            error_code=ErrorCode.PARSE_ERROR,
+            error_message=str(exc),
+        ) from exc
+
+
 class UnleashClientProtocol(typing.Protocol):
     def initialize_client(self, fetch_toggles: bool = True) -> None: ...
 
@@ -179,7 +203,7 @@ class UnleashFlagProvider(AbstractProvider):
             default_value,
             evaluation_context,
             payload_types={"number"},
-            convert=int,
+            convert=_parse_int,
         )
 
     def resolve_float_details(
@@ -193,7 +217,7 @@ class UnleashFlagProvider(AbstractProvider):
             default_value,
             evaluation_context,
             payload_types={"number"},
-            convert=float,
+            convert=_parse_float,
         )
 
     def resolve_object_details(

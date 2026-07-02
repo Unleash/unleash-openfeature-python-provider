@@ -22,10 +22,6 @@ FEATURES_PATH = ROOT / "verifier" / "fixtures" / "unleash-features.json"
 
 CAPABILITIES = {"localEval", "perCallContext"}
 KNOWN_GAPS = {
-    "number-empty-string-guard": (
-        "Current provider reports TYPE_MISMATCH for an empty number payload; "
-        "contract expects PARSE_ERROR."
-    ),
     "object-scalar-json-passthrough": (
         "Current provider rejects scalar JSON object payloads; contract expects "
         "JsonValue passthrough."
@@ -69,7 +65,8 @@ def openfeature_provider() -> Iterator[None]:
         disable_registration=True,
     )
 
-    api.set_provider_and_wait(UnleashFlagProvider(unleash_client))
+    # Hush pyright, I don't care about this type, stop bothering me
+    api.set_provider_and_wait(UnleashFlagProvider(cast(Any, unleash_client)))
     try:
         yield
     finally:
