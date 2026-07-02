@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import json
-import threading
 from collections.abc import Iterator, Mapping
-from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, cast
 
@@ -14,6 +11,8 @@ from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagEvaluationDetails
 from UnleashClient import UnleashClient
+from UnleashClient.cache import BaseCache
+from UnleashClient.constants import FEATURES_URL
 
 from unleash_openfeature_python_provider import UnleashFlagProvider
 
@@ -34,91 +33,43 @@ KNOWN_GAPS = {
 }
 
 
-class FakeUnleashServer:
+class MemoryCache:
+    bootstrapped = True
+
     def __init__(self, features: Mapping[str, Any]) -> None:
-        self._features = features
-        self._server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
-        self._thread = threading.Thread(
-            target=self._server.serve_forever,
-            name="fake-unleash",
-            daemon=True,
-        )
+        self._values: dict[str, Any] = {FEATURES_URL: json.dumps(features)}
 
-    @property
-    def url(self) -> str:
-        host, port = cast(tuple[str, int], self._server.server_address)
-        return f"http://{host}:{port}/api"
+    def set(self, key: str, value: Any) -> None:
+        self._values[key] = value
 
-    def start(self) -> None:
-        self._thread.start()
+    def mset(self, data: dict[str, Any]) -> None:
+        self._values.update(data)
 
-    def close(self) -> None:
-        self._server.shutdown()
-        self._server.server_close()
-        self._thread.join(timeout=5)
+    def get(self, key: str, default: Any | None = None) -> Any:
+        return self._values.get(key, default)
 
-    def _handler(self) -> type[BaseHTTPRequestHandler]:
-        features = self._features
+    def exists(self, key: str) -> bool:
+        return key in self._values
 
-        class Handler(BaseHTTPRequestHandler):
-            def do_GET(self) -> None:
-                if self.path.startswith("/api/client/features"):
-                    body = json.dumps(features).encode()
-                    self.send_response(HTTPStatus.OK)
-                    self.send_header("content-type", "application/json")
-                    self.send_header("content-length", str(len(body)))
-                    self.end_headers()
-                    self.wfile.write(body)
-                    return
-
-                self.send_response(HTTPStatus.NOT_FOUND)
-                self.end_headers()
-
-            def do_POST(self) -> None:
-                if self.path.startswith(
-                    (
-                        "/api/client/register",
-                        "/api/client/metrics",
-                    )
-                ):
-                    self.send_response(HTTPStatus.ACCEPTED)
-                    self.end_headers()
-                    return
-
-                self.send_response(HTTPStatus.NOT_FOUND)
-                self.end_headers()
-
-            def log_message(self, format: str, *args: Any) -> None:
-                return
-
-        return Handler
-
-
-@pytest.fixture(scope="module")
-def fake_unleash() -> Iterator[FakeUnleashServer]:
-    with FEATURES_PATH.open() as file:
-        features = json.load(file)
-
-    server = FakeUnleashServer(features)
-    server.start()
-    try:
-        yield server
-    finally:
-        server.close()
+    def destroy(self) -> None:
+        self._values.clear()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def openfeature_provider(fake_unleash: FakeUnleashServer) -> Iterator[None]:
+def openfeature_provider() -> Iterator[None]:
+    with FEATURES_PATH.open() as file:
+        features = json.load(file)
+
     unleash_client = UnleashClient(
-        url=fake_unleash.url,
+        url="http://unleash-bootstrap.invalid/api",
         app_name="openfeature-python-verifier",
-        custom_headers={"Authorization": "verifier-not-a-real-token"},
+        cache=cast(BaseCache, MemoryCache(features)),
         refresh_interval=60,
         disable_metrics=True,
         disable_registration=True,
     )
 
-    api.set_provider_and_wait(UnleashFlagProvider(cast(Any, unleash_client)))
+    api.set_provider_and_wait(UnleashFlagProvider(unleash_client))
     try:
         yield
     finally:
