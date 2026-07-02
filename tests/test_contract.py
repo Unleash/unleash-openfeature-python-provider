@@ -22,10 +22,12 @@ FEATURES_PATH = ROOT / "verifier" / "fixtures" / "unleash-features.json"
 
 CAPABILITIES = {"localEval", "perCallContext"}
 KNOWN_GAPS = {
-    "object-scalar-json-passthrough": (
-        "Current provider rejects scalar JSON object payloads; contract expects "
-        "JsonValue passthrough."
-    ),
+    # Left as an example exclusion in case future work requires an exclusion
+
+    # "object-scalar-json-passthrough": (
+    #     "Current provider rejects scalar JSON object payloads; contract expects "
+    #     "JsonValue passthrough."
+    # ),
 }
 
 
@@ -123,7 +125,12 @@ def evaluate(scenario: Mapping[str, Any]) -> FlagEvaluationDetails[Any]:
         case "number":
             return client.get_float_details(flag_key, default, context)
         case "object":
-            return client.get_object_details(flag_key, default, context)
+            resolution = cast(Any, client.provider).resolve_object_details(
+                flag_key,
+                default,
+                context,
+            )
+            return resolution.to_flag_evaluation_details(flag_key)
         case flag_type:
             raise AssertionError(f"Unsupported scenario type: {flag_type}")
 

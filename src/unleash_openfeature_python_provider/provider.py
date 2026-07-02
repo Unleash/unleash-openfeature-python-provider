@@ -7,14 +7,10 @@ from dataclasses import dataclass
 
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
-from openfeature.flag_evaluation import FlagResolutionDetails, Reason
+from openfeature.flag_evaluation import FlagResolutionDetails, FlagValueType, Reason
 from openfeature.provider import AbstractProvider, Metadata
 
 from ._context import to_unleash_context
-
-if typing.TYPE_CHECKING:
-    from openfeature.flag_evaluation import FlagValueType
-
 
 T = typing.TypeVar("T")
 
@@ -88,21 +84,21 @@ def _resolve_object_payload(
             error_message=str(exc),
         ) from exc
 
-    # Pretty sure Unleash can't give us a list here
-    # buuuuut, the OF lib suggests we can get one so it
-    # doesn't feel harmful to allow this
-    if not isinstance(value, (list, dict)):
+    if value is None:
         raise _VariantResolutionError(
             Reason.ERROR,
             error_code=ErrorCode.TYPE_MISMATCH,
-            error_message="Variant payload is not a JSON object or array",
+            error_message="Variant payload is JSON null",
         )
 
-    return value
+    return typing.cast(
+        Sequence[FlagValueType] | Mapping[str, FlagValueType],
+        value,
+    )
 
 
 # This exists so we can yield error types that we expect
-# Only really needed for spec compliance 
+# Only really needed for spec compliance
 def _parse_int(value: typing.Any) -> int:
     try:
         return int(value)

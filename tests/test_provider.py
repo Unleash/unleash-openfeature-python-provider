@@ -201,14 +201,14 @@ def test_returns_parse_error_for_invalid_json_object_payload() -> None:
     assert details.error_code == ErrorCode.PARSE_ERROR
 
 
-def test_returns_type_mismatch_for_json_scalar_object_payload() -> None:
+def test_resolves_json_scalar_object_payload() -> None:
     provider = UnleashFlagProvider(FakeUnleashClient())
 
     details = provider.resolve_object_details("scalar-object", {})
 
-    assert details.value == {}
-    assert details.reason == Reason.ERROR
-    assert details.error_code == ErrorCode.TYPE_MISMATCH
+    assert details.value == "not an object"
+    assert details.reason == Reason.UNKNOWN
+    assert details.error_code is None
 
 
 def test_returns_default_for_disabled_variant() -> None:
