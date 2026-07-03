@@ -2,11 +2,6 @@ name: Publish
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Semver version to publish, without a leading v"
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -34,21 +29,23 @@ jobs:
       - name: Set up Python
         run: uv python install 3.10
 
-      - name: Validate version input
+      - name: Read project version
         run: |
-          VERSION="${{ inputs.version }}"
+          VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml | head -n 1)"
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-            echo "Version must be semver without a leading v, got: $VERSION" >&2
+            echo "Project version must be semver without a leading v, got: $VERSION" >&2
             exit 1
           fi
 
-      - name: Check project version
-        run: |
-          REQUESTED_VERSION="${{ inputs.version }}"
-          PROJECT_VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml | head -n 1)"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
 
-          if [[ "$PROJECT_VERSION" != "$REQUESTED_VERSION" ]]; then
-            echo "Requested version $REQUESTED_VERSION does not match project version $PROJECT_VERSION" >&2
+      - name: Check exported version
+        run: |
+          PACKAGE_VERSION="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/unleash_openfeature_python_provider/_version.py | head -n 1)"
+
+          if [[ "$PACKAGE_VERSION" != "$VERSION" ]]; then
+            echo "_version.py version $PACKAGE_VERSION does not match project version $VERSION" >&2
             exit 1
           fi
 
@@ -63,7 +60,6 @@ jobs:
 
       - name: Check tag does not exist
         run: |
-          TAG="v${{ inputs.version }}"
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists on origin" >&2
             exit 1
@@ -71,7 +67,6 @@ jobs:
 
       - name: Create and push tag
         run: |
-          TAG="v${{ inputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "$TAG"
@@ -84,5 +79,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v${{ inputs.version }}"
           gh release create "$TAG" dist/* --title "$TAG" --generate-notes
