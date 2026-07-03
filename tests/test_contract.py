@@ -23,7 +23,6 @@ FEATURES_PATH = ROOT / "verifier" / "fixtures" / "unleash-features.json"
 CAPABILITIES = {"localEval", "perCallContext"}
 KNOWN_GAPS = {
     # Left as an example exclusion in case future work requires an exclusion
-
     # "object-scalar-json-passthrough": (
     #     "Current provider rejects scalar JSON object payloads; contract expects "
     #     "JsonValue passthrough."
