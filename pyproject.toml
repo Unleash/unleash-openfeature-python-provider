@@ -1,6 +1,6 @@
 [project]
 name = "unleash-openfeature-python-provider"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 description = "Python provider for Unleash and OpenFeature."
 readme = "README.md"
 requires-python = ">=3.10"
