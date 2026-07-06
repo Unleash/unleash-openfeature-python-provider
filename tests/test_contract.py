@@ -17,7 +17,7 @@ from UnleashClient.constants import FEATURES_URL
 from unleash_openfeature_python_provider import UnleashFlagProvider
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTRACT_PATH = ROOT / "verifier" / "contract.json"
+CONTRACT_PATH = ROOT / "verifier" / "spec" / "contract.json"
 FEATURES_PATH = ROOT / "verifier" / "fixtures" / "unleash-features.json"
 
 CAPABILITIES = {"localEval", "perCallContext"}
