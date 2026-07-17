@@ -41,17 +41,17 @@ git status
 ```python
 from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
-from UnleashClient import UnleashClient
 
 from unleash_openfeature_python_provider import UnleashFlagProvider
 
-unleash_client = UnleashClient(
+# The provider builds and owns the Unleash client. Pass the same options you
+provider = UnleashFlagProvider(
     url="https://app.unleash-hosted.com/demo/api",
     app_name="my-app",
     custom_headers={"Authorization": "<client-api-key>"},
 )
 
-api.set_provider_and_wait(UnleashFlagProvider(unleash_client))
+api.set_provider_and_wait(provider)
 
 client = api.get_client()
 enabled = client.get_boolean_value(
