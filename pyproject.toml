@@ -6,7 +6,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "openfeature-sdk>=0.10.0",
-    "unleashclient>=6.7.0",
+    # Needs the release that adds the `sdk_flavor` / `sdk_flavor_version`
+    "unleashclient>=6.8.0",
 ]
 
 [dependency-groups]
