@@ -9,10 +9,15 @@ from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagResolutionDetails, FlagValueType, Reason
 from openfeature.provider import AbstractProvider, Metadata
+from UnleashClient import UnleashClient
 
 from ._context import to_unleash_context
+from ._version import __version__
 
 T = typing.TypeVar("T")
+
+SDK_FLAVOR = "unleash-openfeature-python-provider"
+SDK_FLAVOR_VERSION = __version__
 
 
 class _VariantResolutionError(Exception):
@@ -143,8 +148,23 @@ class UnleashClientProtocol(typing.Protocol):
 
 
 class UnleashFlagProvider(AbstractProvider):
-    def __init__(self, client: UnleashClientProtocol) -> None:
+    def __init__(self, url: str, app_name: str, **client_options: typing.Any) -> None:
         self._client = client
+        client_options["sdk_flavor"] = SDK_FLAVOR
+        client_options["sdk_flavor_version"] = SDK_FLAVOR_VERSION
+        self._client: UnleashClientProtocol = UnleashClient(
+            url=url,
+            app_name=app_name,
+            **client_options,
+        )
+
+    @classmethod
+    def _from_client(cls, client: UnleashClientProtocol) -> "UnleashFlagProvider":
+        """Test-only seam: wrap an already-built (or fake) client directly,
+        bypassing UnleashClient construction. Not part of the public API."""
+        provider = cls.__new__(cls)
+        provider._client = client
+        return provider
 
     def get_metadata(self) -> Metadata:
         return UnleashProviderMetadata()
