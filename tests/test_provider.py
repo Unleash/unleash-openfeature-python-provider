@@ -99,8 +99,35 @@ class FakeUnleashClient:
         return {"name": "disabled", "enabled": False, "feature_enabled": False}
 
 
+def test_provider_owns_client_and_stamps_sdk_flavor() -> None:
+    from unleash_openfeature_python_provider import SDK_FLAVOR, SDK_FLAVOR_VERSION
+
+    provider = UnleashFlagProvider(
+        url="http://localhost:4242/api",
+        app_name="test-app",
+        disable_metrics=True,
+    )
+
+    client = provider._client
+    assert client.unleash_sdk_flavor == SDK_FLAVOR
+    assert client.unleash_sdk_flavor_version == SDK_FLAVOR_VERSION
+
+
+def test_provider_sdk_flavor_cannot_be_overridden_by_caller() -> None:
+    from unleash_openfeature_python_provider import SDK_FLAVOR
+
+    provider = UnleashFlagProvider(
+        url="http://localhost:4242/api",
+        app_name="test-app",
+        disable_metrics=True,
+        sdk_flavor="something-else",
+    )
+
+    assert provider._client.unleash_sdk_flavor == SDK_FLAVOR
+
+
 def test_resolves_boolean_flag() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+    provider = UnleashFlagProvider._from_client(FakeUnleashClient())
 
     details = provider.resolve_boolean_details("enabled", False)
 
@@ -109,7 +136,7 @@ def test_resolves_boolean_flag() -> None:
 
 def test_initialize_initializes_unleash_client() -> None:
     client = FakeUnleashClient()
-    provider = UnleashFlagProvider(client)
+    provider = UnleashFlagProvider._from_client(client)
 
     provider.initialize(EvaluationContext())
     provider.initialize(EvaluationContext())
@@ -119,7 +146,7 @@ def test_initialize_initializes_unleash_client() -> None:
 
 def test_shutdown_destroys_unleash_client() -> None:
     client = FakeUnleashClient()
-    provider = UnleashFlagProvider(client)
+    provider = UnleashFlagProvider._from_client(client)
 
     provider.shutdown()
     provider.shutdown()
@@ -129,7 +156,7 @@ def test_shutdown_destroys_unleash_client() -> None:
 
 def test_passes_targeting_key_as_unleash_user_id() -> None:
     client = FakeUnleashClient()
-    provider = UnleashFlagProvider(client)
+    provider = UnleashFlagProvider._from_client(client)
 
     provider.resolve_boolean_details(
         "enabled",
@@ -141,7 +168,7 @@ def test_passes_targeting_key_as_unleash_user_id() -> None:
 
 
 def test_resolves_string_variant_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+    provider = UnleashFlagProvider._from_client(FakeUnleashClient())
 
     details = provider.resolve_string_details("string", "fallback")
 
@@ -150,7 +177,7 @@ def test_resolves_string_variant_payload() -> None:
 
 
 def test_resolves_csv_variant_payload_as_string() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+    provider = UnleashFlagProvider._from_client(FakeUnleashClient())
 
     details = provider.resolve_string_details("csv", "none")
 
@@ -158,7 +185,7 @@ def test_resolves_csv_variant_payload_as_string() -> None:
 
 
 def test_returns_type_mismatch_for_wrong_string_payload_type() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+    provider = UnleashFlagProvider._from_client(FakeUnleashClient())
 
     details = provider.resolve_string_details("wrong-type", "fallback")
 
@@ -168,7 +195,7 @@ def test_returns_type_mismatch_for_wrong_string_payload_type() -> None:
 
 
 def test_resolves_integer_variant_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+    provider = UnleashFlagProvider._from_client(FakeUnleashClient())
 
     details = provider.resolve_integer_details("integer", 0)
 
@@ -176,7 +203,7 @@ def test_resolves_integer_variant_payload() -> None:
 
 
 def test_resolves_object_variant_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+    provider = UnleashFlagProvider._from_client(FakeUnleashClient())
 
     details = provider.resolve_object_details("object", {})
 
@@ -184,7 +211,7 @@ def test_resolves_object_variant_payload() -> None:
 
 
 def test_resolves_json_array_object_variant_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+    provider = UnleashFlagProvider._from_client(FakeUnleashClient())
 
     details = provider.resolve_object_details("array-object", [])
 
@@ -192,7 +219,7 @@ def test_resolves_json_array_object_variant_payload() -> None:
 
 
 def test_returns_parse_error_for_invalid_json_object_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+    provider = UnleashFlagProvider._from_client(FakeUnleashClient())
 
     details = provider.resolve_object_details("invalid-object", {})
 
@@ -202,7 +229,7 @@ def test_returns_parse_error_for_invalid_json_object_payload() -> None:
 
 
 def test_resolves_json_scalar_object_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+    provider = UnleashFlagProvider._from_client(FakeUnleashClient())
 
     details = provider.resolve_object_details("scalar-object", {})
 
@@ -212,7 +239,7 @@ def test_resolves_json_scalar_object_payload() -> None:
 
 
 def test_returns_default_for_disabled_variant() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+    provider = UnleashFlagProvider._from_client(FakeUnleashClient())
 
     details = provider.resolve_string_details("missing", "fallback")
 
@@ -220,7 +247,7 @@ def test_returns_default_for_disabled_variant() -> None:
 
 
 def test_returns_type_mismatch_for_unparseable_variant_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+    provider = UnleashFlagProvider._from_client(FakeUnleashClient())
 
     details = provider.resolve_integer_details("bad-integer", 0)
 
@@ -230,7 +257,7 @@ def test_returns_type_mismatch_for_unparseable_variant_payload() -> None:
 
 
 def test_returns_parse_error_for_empty_number_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+    provider = UnleashFlagProvider._from_client(FakeUnleashClient())
 
     details = provider.resolve_float_details("empty-number", 7)
 
@@ -240,6 +267,6 @@ def test_returns_parse_error_for_empty_number_payload() -> None:
 
 
 def test_metadata_name() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+    provider = UnleashFlagProvider._from_client(FakeUnleashClient())
 
     assert provider.get_metadata().name == "Unleash OpenFeature Provider"

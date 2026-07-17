@@ -67,7 +67,7 @@ def openfeature_provider() -> Iterator[None]:
     )
 
     # Hush pyright, I don't care about this type, stop bothering me
-    api.set_provider_and_wait(UnleashFlagProvider(cast(Any, unleash_client)))
+    api.set_provider_and_wait(UnleashFlagProvider._from_client(cast(Any, unleash_client)))
     try:
         yield
     finally:
