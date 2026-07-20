@@ -149,7 +149,7 @@ class UnleashClientProtocol(typing.Protocol):
 
 class UnleashFlagProvider(AbstractProvider):
     def __init__(self, url: str, app_name: str, **client_options: typing.Any) -> None:
-        self._client = client
+        # The provider builds and owns the client so it can always stamp its own
         client_options["sdk_flavor"] = SDK_FLAVOR
         client_options["sdk_flavor_version"] = SDK_FLAVOR_VERSION
         self._client: UnleashClientProtocol = UnleashClient(

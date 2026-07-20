@@ -108,9 +108,8 @@ def test_provider_owns_client_and_stamps_sdk_flavor() -> None:
         disable_metrics=True,
     )
 
-    client = provider._client
-    assert client.unleash_sdk_flavor == SDK_FLAVOR
-    assert client.unleash_sdk_flavor_version == SDK_FLAVOR_VERSION
+    assert provider._client.unleash_sdk_flavor == SDK_FLAVOR
+    assert provider._client.unleash_sdk_flavor_version == SDK_FLAVOR_VERSION
 
 
 def test_provider_sdk_flavor_cannot_be_overridden_by_caller() -> None:
