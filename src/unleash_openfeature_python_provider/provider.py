@@ -159,7 +159,7 @@ class UnleashFlagProvider(AbstractProvider):
         )
 
     @classmethod
-    def _from_client(cls, client: UnleashClientProtocol) -> "UnleashFlagProvider":
+    def _from_client(cls, client: UnleashClientProtocol) -> UnleashFlagProvider:
         """Test-only seam: wrap an already-built (or fake) client directly,
         bypassing UnleashClient construction. Not part of the public API."""
         provider = cls.__new__(cls)
