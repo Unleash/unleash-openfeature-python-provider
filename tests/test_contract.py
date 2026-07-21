@@ -10,6 +10,7 @@ from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagEvaluationDetails
+from UnleashClient import UnleashClient
 from UnleashClient.cache import BaseCache
 from UnleashClient.constants import FEATURES_URL
 
@@ -56,7 +57,9 @@ def openfeature_provider() -> Iterator[None]:
     with FEATURES_PATH.open() as file:
         features = json.load(file)
 
-    provider = UnleashFlagProvider(
+    import unleash_openfeature_python_provider.provider as provider_module
+
+    unleash_client = UnleashClient(
         url="http://unleash-bootstrap.invalid/api",
         app_name="openfeature-python-verifier",
         cache=cast(BaseCache, MemoryCache(features)),
@@ -65,12 +68,21 @@ def openfeature_provider() -> Iterator[None]:
         disable_registration=True,
     )
 
-    api.set_provider_and_wait(provider)
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        provider_module, "UnleashClient", lambda **kwargs: unleash_client
+    )
     try:
+        provider = UnleashFlagProvider(
+            url="http://unleash-bootstrap.invalid/api",
+            app_name="openfeature-python-verifier",
+        )
+        api.set_provider_and_wait(provider)
         yield
     finally:
         api.shutdown()
         api.clear_providers()
+        monkeypatch.undo()
 
 
 def applicable_scenarios() -> list[Any]:

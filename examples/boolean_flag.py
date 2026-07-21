@@ -20,7 +20,7 @@ def main() -> None:
     parser.add_argument("--default", action="store_true", help="Default flag value")
     args = parser.parse_args()
 
-    # It builds and owns the Unleash client. Pass the same options for UnleashClient, 
+    # It builds and owns the Unleash client. Pass the same options for UnleashClient,
     # the provider stamps its SDK-flavor on top.
     provider = UnleashFlagProvider(
         url=args.url,
