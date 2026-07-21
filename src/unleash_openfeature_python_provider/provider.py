@@ -126,30 +126,10 @@ def _parse_float(value: typing.Any) -> float:
         ) from exc
 
 
-class UnleashClientProtocol(typing.Protocol):
-    def initialize_client(self, fetch_toggles: bool = True) -> None: ...
-
-    def destroy(self) -> None: ...
-
-    def is_enabled(
-        self,
-        feature_name: str,
-        context: dict[str, typing.Any] | None = None,
-        fallback_function: (
-            typing.Callable[[str, dict[str, typing.Any] | None], bool] | None
-        ) = None,
-    ) -> bool: ...
-
-    def get_variant(
-        self,
-        feature_name: str,
-        context: dict[str, typing.Any] | None = None,
-    ) -> dict[str, typing.Any]: ...
-
-
 class UnleashFlagProvider(AbstractProvider):
     def __init__(self, url: str, app_name: str, **client_options: typing.Any) -> None:
         # The provider builds and owns the client so it can always stamp its own
+        # SDK-flavor identity; these win over any sdk_flavor a caller passes.
         client_options["sdk_flavor"] = SDK_FLAVOR
         client_options["sdk_flavor_version"] = SDK_FLAVOR_VERSION
         self._client: UnleashClient = UnleashClient(
@@ -157,15 +137,6 @@ class UnleashFlagProvider(AbstractProvider):
             app_name=app_name,
             **client_options,
         )
-
-    @classmethod
-    def _from_client(cls, client: UnleashClientProtocol) -> UnleashFlagProvider:
-        """Test-only seam: wrap an already-built (or fake) client directly,
-        bypassing UnleashClient construction. Not part of the public API."""
-        provider = cls.__new__(cls)
-        # The seam accepts any object matching the protocol (e.g. a fake); the
-        provider._client = typing.cast(UnleashClient, client)
-        return provider
 
     def get_metadata(self) -> Metadata:
         return UnleashProviderMetadata()

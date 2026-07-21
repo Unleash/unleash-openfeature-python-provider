@@ -10,7 +10,6 @@ from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagEvaluationDetails
-from UnleashClient import UnleashClient
 from UnleashClient.cache import BaseCache
 from UnleashClient.constants import FEATURES_URL
 
@@ -57,7 +56,7 @@ def openfeature_provider() -> Iterator[None]:
     with FEATURES_PATH.open() as file:
         features = json.load(file)
 
-    unleash_client = UnleashClient(
+    provider = UnleashFlagProvider(
         url="http://unleash-bootstrap.invalid/api",
         app_name="openfeature-python-verifier",
         cache=cast(BaseCache, MemoryCache(features)),
@@ -66,10 +65,7 @@ def openfeature_provider() -> Iterator[None]:
         disable_registration=True,
     )
 
-    # Hush pyright, I don't care about this type, stop bothering me
-    api.set_provider_and_wait(
-        UnleashFlagProvider._from_client(cast(Any, unleash_client))
-    )
+    api.set_provider_and_wait(provider)
     try:
         yield
     finally:
