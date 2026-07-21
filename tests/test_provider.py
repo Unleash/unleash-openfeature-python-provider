@@ -99,30 +99,49 @@ class FakeUnleashClient:
         return {"name": "disabled", "enabled": False, "feature_enabled": False}
 
 
-def test_provider_owns_client_and_stamps_sdk_flavor() -> None:
+def _capture_client_options(monkeypatch) -> dict:
+    """Spy on the UnleashClient constructor and return the options it's built
+    with, without depending on the SDK's internal attributes."""
+    import unleash_openfeature_python_provider.provider as provider_module
+
+    captured: dict = {}
+
+    def fake_unleash_client(**kwargs):
+        captured.update(kwargs)
+        return FakeUnleashClient()
+
+    monkeypatch.setattr(provider_module, "UnleashClient", fake_unleash_client)
+    return captured
+
+
+def test_provider_owns_client_and_stamps_sdk_flavor(monkeypatch) -> None:
     from unleash_openfeature_python_provider import SDK_FLAVOR, SDK_FLAVOR_VERSION
 
-    provider = UnleashFlagProvider(
+    captured = _capture_client_options(monkeypatch)
+
+    UnleashFlagProvider(
         url="http://localhost:4242/api",
         app_name="test-app",
         disable_metrics=True,
     )
 
-    assert provider._client.unleash_sdk_flavor == SDK_FLAVOR
-    assert provider._client.unleash_sdk_flavor_version == SDK_FLAVOR_VERSION
+    assert captured["sdk_flavor"] == SDK_FLAVOR
+    assert captured["sdk_flavor_version"] == SDK_FLAVOR_VERSION
 
 
-def test_provider_sdk_flavor_cannot_be_overridden_by_caller() -> None:
+def test_provider_sdk_flavor_cannot_be_overridden_by_caller(monkeypatch) -> None:
     from unleash_openfeature_python_provider import SDK_FLAVOR
 
-    provider = UnleashFlagProvider(
+    captured = _capture_client_options(monkeypatch)
+
+    UnleashFlagProvider(
         url="http://localhost:4242/api",
         app_name="test-app",
         disable_metrics=True,
         sdk_flavor="something-else",
     )
 
-    assert provider._client.unleash_sdk_flavor == SDK_FLAVOR
+    assert captured["sdk_flavor"] == SDK_FLAVOR
 
 
 def test_resolves_boolean_flag() -> None:
