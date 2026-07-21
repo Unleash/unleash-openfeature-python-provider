@@ -4,7 +4,6 @@ import argparse
 
 from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
-from UnleashClient import UnleashClient
 
 from unleash_openfeature_python_provider import UnleashFlagProvider
 
@@ -21,13 +20,13 @@ def main() -> None:
     parser.add_argument("--default", action="store_true", help="Default flag value")
     args = parser.parse_args()
 
-    unleash_client = UnleashClient(
+    # It builds and owns the Unleash client. Pass the same options for UnleashClient,
+    # the provider stamps its SDK-flavor on top.
+    provider = UnleashFlagProvider(
         url=args.url,
         app_name=args.app_name,
         custom_headers={"Authorization": args.api_key},
     )
-
-    provider = UnleashFlagProvider(unleash_client)
     api.set_provider_and_wait(provider)
 
     evaluation_context = (

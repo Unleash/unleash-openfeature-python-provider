@@ -9,10 +9,15 @@ from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagResolutionDetails, FlagValueType, Reason
 from openfeature.provider import AbstractProvider, Metadata
+from UnleashClient import UnleashClient
 
 from ._context import to_unleash_context
+from ._version import __version__
 
 T = typing.TypeVar("T")
+
+SDK_FLAVOR = "unleash-openfeature-python-provider"
+SDK_FLAVOR_VERSION = __version__
 
 
 class _VariantResolutionError(Exception):
@@ -121,30 +126,17 @@ def _parse_float(value: typing.Any) -> float:
         ) from exc
 
 
-class UnleashClientProtocol(typing.Protocol):
-    def initialize_client(self, fetch_toggles: bool = True) -> None: ...
-
-    def destroy(self) -> None: ...
-
-    def is_enabled(
-        self,
-        feature_name: str,
-        context: dict[str, typing.Any] | None = None,
-        fallback_function: (
-            typing.Callable[[str, dict[str, typing.Any] | None], bool] | None
-        ) = None,
-    ) -> bool: ...
-
-    def get_variant(
-        self,
-        feature_name: str,
-        context: dict[str, typing.Any] | None = None,
-    ) -> dict[str, typing.Any]: ...
-
-
 class UnleashFlagProvider(AbstractProvider):
-    def __init__(self, client: UnleashClientProtocol) -> None:
-        self._client = client
+    def __init__(self, url: str, app_name: str, **client_options: typing.Any) -> None:
+        # The provider builds and owns the client so it can always stamp its own
+        # SDK-flavor identity; these win over any sdk_flavor a caller passes.
+        client_options["sdk_flavor"] = SDK_FLAVOR
+        client_options["sdk_flavor_version"] = SDK_FLAVOR_VERSION
+        self._client: UnleashClient = UnleashClient(
+            url=url,
+            app_name=app_name,
+            **client_options,
+        )
 
     def get_metadata(self) -> Metadata:
         return UnleashProviderMetadata()

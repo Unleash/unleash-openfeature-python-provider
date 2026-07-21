@@ -57,6 +57,8 @@ def openfeature_provider() -> Iterator[None]:
     with FEATURES_PATH.open() as file:
         features = json.load(file)
 
+    import unleash_openfeature_python_provider.provider as provider_module
+
     unleash_client = UnleashClient(
         url="http://unleash-bootstrap.invalid/api",
         app_name="openfeature-python-verifier",
@@ -66,13 +68,21 @@ def openfeature_provider() -> Iterator[None]:
         disable_registration=True,
     )
 
-    # Hush pyright, I don't care about this type, stop bothering me
-    api.set_provider_and_wait(UnleashFlagProvider(cast(Any, unleash_client)))
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        provider_module, "UnleashClient", lambda **kwargs: unleash_client
+    )
     try:
+        provider = UnleashFlagProvider(
+            url="http://unleash-bootstrap.invalid/api",
+            app_name="openfeature-python-verifier",
+        )
+        api.set_provider_and_wait(provider)
         yield
     finally:
         api.shutdown()
         api.clear_providers()
+        monkeypatch.undo()
 
 
 def applicable_scenarios() -> list[Any]:

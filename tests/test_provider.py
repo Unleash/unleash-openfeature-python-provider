@@ -1,3 +1,4 @@
+import pytest
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import Reason
@@ -99,17 +100,68 @@ class FakeUnleashClient:
         return {"name": "disabled", "enabled": False, "feature_enabled": False}
 
 
-def test_resolves_boolean_flag() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+class _ProviderBuilder:
+    """Builds a provider through its public constructor while stubbing the
+    UnleashClient it creates internally, so tests never rely on a client-injection
+    seam. Pass a fake client to inject it; ``client_options`` records what the
+    provider passed to UnleashClient."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._monkeypatch = monkeypatch
+        self.client_options: dict = {}
+
+    def __call__(
+        self, client: object | None = None, **provider_options: object
+    ) -> UnleashFlagProvider:
+        import unleash_openfeature_python_provider.provider as provider_module
+
+        fake = FakeUnleashClient() if client is None else client
+
+        def fake_unleash_client(**kwargs: object) -> object:
+            self.client_options = kwargs
+            return fake
+
+        self._monkeypatch.setattr(provider_module, "UnleashClient", fake_unleash_client)
+        return UnleashFlagProvider(
+            url="http://localhost:4242/api",
+            app_name="test-app",
+            **provider_options,
+        )
+
+
+@pytest.fixture
+def build_provider(monkeypatch: pytest.MonkeyPatch) -> _ProviderBuilder:
+    return _ProviderBuilder(monkeypatch)
+
+
+def test_provider_owns_client_and_stamps_sdk_flavor(build_provider) -> None:
+    from unleash_openfeature_python_provider import SDK_FLAVOR, SDK_FLAVOR_VERSION
+
+    build_provider(disable_metrics=True)
+
+    assert build_provider.client_options["sdk_flavor"] == SDK_FLAVOR
+    assert build_provider.client_options["sdk_flavor_version"] == SDK_FLAVOR_VERSION
+
+
+def test_provider_sdk_flavor_cannot_be_overridden_by_caller(build_provider) -> None:
+    from unleash_openfeature_python_provider import SDK_FLAVOR
+
+    build_provider(disable_metrics=True, sdk_flavor="something-else")
+
+    assert build_provider.client_options["sdk_flavor"] == SDK_FLAVOR
+
+
+def test_resolves_boolean_flag(build_provider) -> None:
+    provider = build_provider(FakeUnleashClient())
 
     details = provider.resolve_boolean_details("enabled", False)
 
     assert details.value is True
 
 
-def test_initialize_initializes_unleash_client() -> None:
+def test_initialize_initializes_unleash_client(build_provider) -> None:
     client = FakeUnleashClient()
-    provider = UnleashFlagProvider(client)
+    provider = build_provider(client)
 
     provider.initialize(EvaluationContext())
     provider.initialize(EvaluationContext())
@@ -117,9 +169,9 @@ def test_initialize_initializes_unleash_client() -> None:
     assert client.initialize_calls == 2
 
 
-def test_shutdown_destroys_unleash_client() -> None:
+def test_shutdown_destroys_unleash_client(build_provider) -> None:
     client = FakeUnleashClient()
-    provider = UnleashFlagProvider(client)
+    provider = build_provider(client)
 
     provider.shutdown()
     provider.shutdown()
@@ -127,9 +179,9 @@ def test_shutdown_destroys_unleash_client() -> None:
     assert client.destroy_calls == 2
 
 
-def test_passes_targeting_key_as_unleash_user_id() -> None:
+def test_passes_targeting_key_as_unleash_user_id(build_provider) -> None:
     client = FakeUnleashClient()
-    provider = UnleashFlagProvider(client)
+    provider = build_provider(client)
 
     provider.resolve_boolean_details(
         "enabled",
@@ -140,8 +192,8 @@ def test_passes_targeting_key_as_unleash_user_id() -> None:
     assert client.context == {"sessionId": "abc", "userId": "user-123"}
 
 
-def test_resolves_string_variant_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+def test_resolves_string_variant_payload(build_provider) -> None:
+    provider = build_provider(FakeUnleashClient())
 
     details = provider.resolve_string_details("string", "fallback")
 
@@ -149,16 +201,16 @@ def test_resolves_string_variant_payload() -> None:
     assert details.variant == "variant-a"
 
 
-def test_resolves_csv_variant_payload_as_string() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+def test_resolves_csv_variant_payload_as_string(build_provider) -> None:
+    provider = build_provider(FakeUnleashClient())
 
     details = provider.resolve_string_details("csv", "none")
 
     assert details.value == "a,b,c"
 
 
-def test_returns_type_mismatch_for_wrong_string_payload_type() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+def test_returns_type_mismatch_for_wrong_string_payload_type(build_provider) -> None:
+    provider = build_provider(FakeUnleashClient())
 
     details = provider.resolve_string_details("wrong-type", "fallback")
 
@@ -167,32 +219,32 @@ def test_returns_type_mismatch_for_wrong_string_payload_type() -> None:
     assert details.error_code == ErrorCode.TYPE_MISMATCH
 
 
-def test_resolves_integer_variant_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+def test_resolves_integer_variant_payload(build_provider) -> None:
+    provider = build_provider(FakeUnleashClient())
 
     details = provider.resolve_integer_details("integer", 0)
 
     assert details.value == 42
 
 
-def test_resolves_object_variant_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+def test_resolves_object_variant_payload(build_provider) -> None:
+    provider = build_provider(FakeUnleashClient())
 
     details = provider.resolve_object_details("object", {})
 
     assert details.value == {"enabled": True}
 
 
-def test_resolves_json_array_object_variant_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+def test_resolves_json_array_object_variant_payload(build_provider) -> None:
+    provider = build_provider(FakeUnleashClient())
 
     details = provider.resolve_object_details("array-object", [])
 
     assert details.value == [1, 2, 3]
 
 
-def test_returns_parse_error_for_invalid_json_object_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+def test_returns_parse_error_for_invalid_json_object_payload(build_provider) -> None:
+    provider = build_provider(FakeUnleashClient())
 
     details = provider.resolve_object_details("invalid-object", {})
 
@@ -201,8 +253,8 @@ def test_returns_parse_error_for_invalid_json_object_payload() -> None:
     assert details.error_code == ErrorCode.PARSE_ERROR
 
 
-def test_resolves_json_scalar_object_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+def test_resolves_json_scalar_object_payload(build_provider) -> None:
+    provider = build_provider(FakeUnleashClient())
 
     details = provider.resolve_object_details("scalar-object", {})
 
@@ -211,16 +263,16 @@ def test_resolves_json_scalar_object_payload() -> None:
     assert details.error_code is None
 
 
-def test_returns_default_for_disabled_variant() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+def test_returns_default_for_disabled_variant(build_provider) -> None:
+    provider = build_provider(FakeUnleashClient())
 
     details = provider.resolve_string_details("missing", "fallback")
 
     assert details.value == "fallback"
 
 
-def test_returns_type_mismatch_for_unparseable_variant_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+def test_returns_type_mismatch_for_unparseable_variant_payload(build_provider) -> None:
+    provider = build_provider(FakeUnleashClient())
 
     details = provider.resolve_integer_details("bad-integer", 0)
 
@@ -229,8 +281,8 @@ def test_returns_type_mismatch_for_unparseable_variant_payload() -> None:
     assert details.error_code == ErrorCode.TYPE_MISMATCH
 
 
-def test_returns_parse_error_for_empty_number_payload() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+def test_returns_parse_error_for_empty_number_payload(build_provider) -> None:
+    provider = build_provider(FakeUnleashClient())
 
     details = provider.resolve_float_details("empty-number", 7)
 
@@ -239,7 +291,7 @@ def test_returns_parse_error_for_empty_number_payload() -> None:
     assert details.error_code == ErrorCode.PARSE_ERROR
 
 
-def test_metadata_name() -> None:
-    provider = UnleashFlagProvider(FakeUnleashClient())
+def test_metadata_name(build_provider) -> None:
+    provider = build_provider(FakeUnleashClient())
 
     assert provider.get_metadata().name == "Unleash OpenFeature Provider"
