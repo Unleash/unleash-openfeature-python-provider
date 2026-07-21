@@ -152,7 +152,7 @@ class UnleashFlagProvider(AbstractProvider):
         # The provider builds and owns the client so it can always stamp its own
         client_options["sdk_flavor"] = SDK_FLAVOR
         client_options["sdk_flavor_version"] = SDK_FLAVOR_VERSION
-        self._client: UnleashClientProtocol = UnleashClient(
+        self._client: UnleashClient = UnleashClient(
             url=url,
             app_name=app_name,
             **client_options,
@@ -163,7 +163,8 @@ class UnleashFlagProvider(AbstractProvider):
         """Test-only seam: wrap an already-built (or fake) client directly,
         bypassing UnleashClient construction. Not part of the public API."""
         provider = cls.__new__(cls)
-        provider._client = client
+        # The seam accepts any object matching the protocol (e.g. a fake); the
+        provider._client = typing.cast(UnleashClient, client)
         return provider
 
     def get_metadata(self) -> Metadata:
