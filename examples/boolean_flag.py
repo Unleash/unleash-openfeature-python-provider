@@ -25,7 +25,7 @@ def main() -> None:
     provider = UnleashFlagProvider(
         url=args.url,
         app_name=args.app_name,
-        custom_headers={"Authorization": args.api_key},
+        api_key=args.api_key,
     )
     api.set_provider_and_wait(provider)
 

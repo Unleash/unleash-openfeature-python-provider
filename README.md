@@ -45,10 +45,11 @@ from openfeature.evaluation_context import EvaluationContext
 from unleash_openfeature_python_provider import UnleashFlagProvider
 
 # The provider builds and owns the Unleash client. Pass the same options you
+# would pass to UnleashClient (Unleash Python SDK v7 or later).
 provider = UnleashFlagProvider(
     url="https://app.unleash-hosted.com/demo/api",
     app_name="my-app",
-    custom_headers={"Authorization": "<client-api-key>"},
+    api_key="<client-api-key>",
 )
 
 api.set_provider_and_wait(provider)

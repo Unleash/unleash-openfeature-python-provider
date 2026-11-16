@@ -1,7 +1,10 @@
+import json
+
 import pytest
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import Reason
+from UnleashClient import IdentityOptions, Method, MetricsOptions, Request, Response
 
 from unleash_openfeature_python_provider import UnleashFlagProvider
 
@@ -137,18 +140,63 @@ def build_provider(monkeypatch: pytest.MonkeyPatch) -> _ProviderBuilder:
 def test_provider_owns_client_and_stamps_sdk_flavor(build_provider) -> None:
     from unleash_openfeature_python_provider import SDK_FLAVOR, SDK_FLAVOR_VERSION
 
-    build_provider(disable_metrics=True)
+    build_provider(metrics=MetricsOptions(disabled=True))
 
-    assert build_provider.client_options["sdk_flavor"] == SDK_FLAVOR
-    assert build_provider.client_options["sdk_flavor_version"] == SDK_FLAVOR_VERSION
+    identity = build_provider.client_options["identity"]
+    assert identity.sdk_flavor == SDK_FLAVOR
+    assert identity.sdk_flavor_version == SDK_FLAVOR_VERSION
+
+
+class _RecordingTransport:
+    """Answers the real UnleashClient's requests without a server."""
+
+    def __init__(self) -> None:
+        self.requests: list[Request] = []
+
+    def execute(self, request: Request) -> Response:
+        self.requests.append(request)
+        if request.method == Method.GET:
+            return Response(
+                status=200, headers={}, body=b'{"version": 1, "features": []}'
+            )
+        return Response(status=202, headers={}, body=b"")
+
+
+def test_real_client_registers_with_sdk_flavor_and_callers_instance_id(
+    tmp_path,
+) -> None:
+    from unleash_openfeature_python_provider import SDK_FLAVOR, SDK_FLAVOR_VERSION
+
+    transport = _RecordingTransport()
+    provider = UnleashFlagProvider(
+        url="http://unleash.test/api",
+        app_name="test-app",
+        identity=IdentityOptions(instance_id="my-instance", sdk_flavor="other"),
+        transport=transport,
+        cache_directory=str(tmp_path),
+    )
+    provider.initialize(EvaluationContext())
+    provider.shutdown()
+
+    registration = next(
+        json.loads(r.body or b"")
+        for r in transport.requests
+        if r.url.endswith("/client/register")
+    )
+    assert registration["sdkFlavor"] == SDK_FLAVOR
+    assert registration["sdkFlavorVersion"] == SDK_FLAVOR_VERSION
+    assert registration["instanceId"] == "my-instance"
 
 
 def test_provider_sdk_flavor_cannot_be_overridden_by_caller(build_provider) -> None:
     from unleash_openfeature_python_provider import SDK_FLAVOR
 
-    build_provider(disable_metrics=True, sdk_flavor="something-else")
+    build_provider(
+        metrics=MetricsOptions(disabled=True),
+        identity=IdentityOptions(sdk_flavor="something-else"),
+    )
 
-    assert build_provider.client_options["sdk_flavor"] == SDK_FLAVOR
+    assert build_provider.client_options["identity"].sdk_flavor == SDK_FLAVOR
 
 
 def test_resolves_boolean_flag(build_provider) -> None:
