@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 import typing
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagResolutionDetails, FlagValueType, Reason
 from openfeature.provider import AbstractProvider, Metadata
-from UnleashClient import UnleashClient
+from UnleashClient import IdentityOptions, UnleashClient
 
 from ._context import to_unleash_context
 from ._version import __version__
@@ -130,8 +130,11 @@ class UnleashFlagProvider(AbstractProvider):
     def __init__(self, url: str, app_name: str, **client_options: typing.Any) -> None:
         # The provider builds and owns the client so it can always stamp its own
         # SDK-flavor identity; these win over any sdk_flavor a caller passes.
-        client_options["sdk_flavor"] = SDK_FLAVOR
-        client_options["sdk_flavor_version"] = SDK_FLAVOR_VERSION
+        client_options["identity"] = replace(
+            client_options.get("identity") or IdentityOptions(),
+            sdk_flavor=SDK_FLAVOR,
+            sdk_flavor_version=SDK_FLAVOR_VERSION,
+        )
         self._client: UnleashClient = UnleashClient(
             url=url,
             app_name=app_name,

@@ -10,7 +10,7 @@ from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagEvaluationDetails
-from UnleashClient import UnleashClient
+from UnleashClient import MetricsOptions, PollingOptions, UnleashClient
 from UnleashClient.cache import BaseCache
 from UnleashClient.constants import FEATURES_URL
 
@@ -63,9 +63,8 @@ def openfeature_provider() -> Iterator[None]:
         url="http://unleash-bootstrap.invalid/api",
         app_name="openfeature-python-verifier",
         cache=cast(BaseCache, MemoryCache(features)),
-        refresh_interval=60,
-        disable_metrics=True,
-        disable_registration=True,
+        mode=PollingOptions(interval=60),
+        metrics=MetricsOptions(disabled=True, disable_registration=True),
     )
 
     monkeypatch = pytest.MonkeyPatch()
